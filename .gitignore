@@ -1,4 +1,7 @@
 __pycache__/
 *.py[cod]
 .streamlit/
+.env
+.run/
+streamlit.*.log
 docs/*.pdf
