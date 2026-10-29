@@ -1,18 +1,44 @@
-# Planview EPPM Chatbot
+# Playbook QA — Local Document Retrieval with Ollama
 
-This is an internal Streamlit chatbot that answers Planview EPPM questions from indexed playbook PDFs. It uses retrieval augmented generation: the app extracts text from PDFs, ranks relevant excerpts for each question, and sends those excerpts to an Ollama chat model.
+A Python application that answers process questions from PDF playbooks through a Streamlit chat interface. It combines page-aware PDF extraction, TF-IDF cosine-similarity retrieval, and an Ollama chat model, making the retrieval and prompt-building logic inspectable independently of model inference.
 
-The model is not fine-tuned and the PDFs are not permanently trained into the model.
+## Engineering highlights
 
-## What It Does
+- Splits page text into overlapping chunks (220 words, 45-word overlap by default), preserving filename and page metadata.
+- Builds an in-memory TF-IDF index and retrieves ranked excerpts with configurable top-k and score thresholds.
+- Returns a no-match response before calling the model when retrieval finds no relevant excerpts.
+- Adds source/page context and citation instructions to the model prompt; users can inspect retrieved excerpts.
+- Caches indexing using document paths, sizes, and modification timestamps.
+- Includes six unit tests covering retrieval ranking, unmatched queries, prompt construction, history limits, and model discovery.
+- Includes a Dockerfile with a Streamlit health check.
 
-- Reads PDFs from a configured `docs/` folder or explicit PDF paths.
-- Retrieves relevant playbook excerpts for each user question.
-- Instructs the model to answer only from retrieved playbook context.
-- Cites source filenames and page numbers in the prompt context.
-- Supports app-level password protection.
-- Discovers available Ollama models and filters them through a configured allowlist.
-- Logs internal errors without exposing raw exception details to users.
+## Tech stack and architecture
+
+| Component | Technology and role |
+| --- | --- |
+| Interface | Streamlit chat, session history, retrieval controls |
+| Document parsing | pypdf, page-level text extraction |
+| Retrieval | Python Counter/math, TF-IDF weights and cosine similarity |
+| Generation | Ollama Python client; local or configured remote endpoint |
+| Packaging and checks | Docker, Python unittest |
+
+PDFs → page text → overlapping chunks → cached TF-IDF index. A question plus recent user questions drives retrieval; selected excerpts and bounded chat history are sent to Ollama.
+
+This implementation does not use LangChain, an embedding model, or a vector database. Citation instructions guide model output but do not validate that generated claims are supported.
+
+## Demo status
+
+No recorded demo or sample PDF is committed yet. The repository's docs folder is empty, so a fresh checkout needs a text-based PDF before document QA works. Use synthetic or openly licensed documents for portfolio demonstrations.
+
+For a short recording, show: a document-backed answer with retrieved excerpts visible; a question absent from the document; and a follow-up question. Record actual output and model name rather than presenting an illustrative answer as a measured result.
+
+## Scope and limitations
+
+- Retrieval is lexical; paraphrases without shared terms can be missed. Scanned PDFs require OCR outside this app.
+- Prompt instructions and the no-match guard reduce unsupported answers but do not guarantee factuality.
+- Model selection prefers configured names, but the UI falls back to available models if none match; the allowlist is not a strict security boundary.
+- With no app password configured, the app permits access. Shared deployments need upstream authentication.
+- No answer-quality, latency, throughput, or user-adoption measurements are included.
 
 ## Requirements
 
@@ -51,7 +77,12 @@ http://localhost:8501
 
 ## Configuration
 
-Copy `.env.example` into your deployment environment and set values there. The app reads configuration from environment variables first, then Streamlit secrets.
+Use `.env.example` as a reference and export its settings into the process environment, or configure Streamlit secrets. The app reads environment variables first, then Streamlit secrets; it does not automatically load a `.env` file. For example, in PowerShell:
+
+```powershell
+$env:OLLAMA_MODELS = 'llama3.2'
+python -m streamlit run aiapp.py
+```
 
 Important settings:
 
